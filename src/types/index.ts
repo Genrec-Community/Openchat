@@ -54,6 +54,16 @@ export interface GroupMemberWithUser extends GroupMember {
   group_name: string;
 }
 
+// Pinned message interface
+export interface PinnedMessage {
+  id: string;
+  user_id: string;
+  username: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Real-time message interface (not stored in database)
 export interface RealtimeMessage {
   id: string; // Temporary ID for client-side tracking

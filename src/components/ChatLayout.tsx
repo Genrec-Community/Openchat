@@ -20,8 +20,8 @@ const ChatLayout: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState<GroupWithDetails | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [unreadDirectMessages, setUnreadDirectMessages] = useState(0);
-  const [unreadGroupMessages, setUnreadGroupMessages] = useState<{ [groupId: string]: number }>({});
+  const [,] = useState(0);
+  const [,] = useState<{ [groupId: string]: number }>({});
   const { user, isOperator, canAccessGroups, logout } = useAuth();
 
   useEffect(() => {
@@ -57,13 +57,6 @@ const ChatLayout: React.FC = () => {
     // Simulate some unread notifications
     const mockCount = Math.floor(Math.random() * 5);
     setUnreadNotifications(mockCount);
-    
-    // Simulate unread direct messages
-    if (activeView !== 'direct') {
-      setUnreadDirectMessages(Math.floor(Math.random() * 3));
-    } else {
-      setUnreadDirectMessages(0);
-    }
   }, [activeView]);
 
   const handleViewChange = (view: ChatView) => {

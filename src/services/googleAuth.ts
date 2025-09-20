@@ -16,7 +16,7 @@ export class GoogleAuthService {
     try {
       console.log('🚀 Initiating Google OAuth sign-in...');
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: this.REDIRECT_URL,
@@ -157,7 +157,7 @@ export class GoogleAuthService {
         };
       }
 
-      let user: User;
+      let user: User | undefined = undefined;
 
       if (existingUser) {
         // Update existing user
@@ -218,7 +218,7 @@ export class GoogleAuthService {
           console.log('🔄 Direct insert failed, trying RPC function...');
           
           // Try using a stored procedure that bypasses RLS
-          const { data: rpcResult, error: rpcError } = await supabase.rpc('create_oauth_user', {
+          const { error: rpcError } = await supabase.rpc('create_oauth_user', {
             user_id: supabaseUser.id,
             user_email: userEmail,
             user_username: username,
@@ -278,6 +278,13 @@ export class GoogleAuthService {
         if (!user) {
           user = createResult.data;
         }
+      }
+
+      if (!user) {
+        return {
+          success: false,
+          error: 'Failed to create or retrieve user data',
+        };
       }
 
       console.log('✅ User processed successfully:', user.username);
@@ -445,7 +452,7 @@ export class GoogleAuthService {
    */
   static async refreshSession(): Promise<ApiResponse<void>> {
     try {
-      const { data, error } = await supabase.auth.refreshSession();
+      const { error } = await supabase.auth.refreshSession();
       
       if (error) {
         return {

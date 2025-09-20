@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { RealtimeMessage } from '../types';
-import { Send, Crown, Clock, Timer, User } from 'lucide-react';
+import { Send, Crown, Clock, Timer } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { messageCleanupService } from '../services/messageCleanup';
 
@@ -98,7 +98,7 @@ const DirectChat: React.FC = () => {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { user, isOperator } = useAuth();
+  const { user } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -409,7 +409,6 @@ const DirectChat: React.FC = () => {
         {messages.map((message) => {
           const isOwn = message.user_id === user?.id;
           const timeRemaining = messageCleanupService.getTimeRemaining(message.expires_at);
-          const isExpiringSoon = !timeRemaining.expired && timeRemaining.hours === 0 && timeRemaining.minutes < 30;
           const displayName = message.display_name || message.username;
           const isNewMessage = newMessageIndicator === message.id;
           

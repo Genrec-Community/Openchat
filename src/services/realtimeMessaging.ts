@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { RealtimeMessage, RealtimeChannel, ChatContext, GroupWithDetails } from '../types';
+import type { RealtimeMessage, ChatContext } from '../types';
 
 /**
  * Real-time Messaging Service
@@ -58,19 +58,22 @@ export class RealtimeMessagingService {
         
         // Handle presence changes
         Object.keys(state).forEach(key => {
-          const presence = state[key][0];
-          if (presence) {
-            onUserJoin?.(presence.user);
+          const presences = state[key];
+          if (presences && presences.length > 0) {
+            const presence = presences[0] as any;
+            if (presence && presence.user) {
+              onUserJoin?.(presence.user);
+            }
           }
         });
       });
       
-      channel.on('presence', { event: 'join' }, ({ key, newPresences }: any) => {
+      channel.on('presence', { event: 'join' }, ({ newPresences }: any) => {
         console.log('👋 User joined:', newPresences);
         newPresences.forEach((presence: any) => onUserJoin?.(presence.user));
       });
       
-      channel.on('presence', { event: 'leave' }, ({ key, leftPresences }: any) => {
+      channel.on('presence', { event: 'leave' }, ({ leftPresences }: any) => {
         console.log('👋 User left:', leftPresences);
         leftPresences.forEach((presence: any) => onUserLeave?.(presence.user));
       });
@@ -242,7 +245,7 @@ export class RealtimeMessagingService {
     console.log('🧹 Cleaning up all real-time subscriptions');
     
     // Unsubscribe from all channels
-    this.channels.forEach((channel, channelName) => {
+    this.channels.forEach((_, channelName) => {
       this.unsubscribe(channelName);
     });
     

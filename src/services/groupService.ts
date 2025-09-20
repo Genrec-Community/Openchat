@@ -1,12 +1,10 @@
 import { supabase } from '../lib/supabase';
 import type { 
   Group, 
-  GroupMember, 
   GroupWithDetails, 
   CreateGroupData, 
   JoinGroupData, 
-  ApiResponse,
-  User 
+  ApiResponse
 } from '../types';
 
 /**

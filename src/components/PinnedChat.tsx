@@ -12,7 +12,7 @@ const PinnedChat: React.FC = () => {
   const [editingContent, setEditingContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const { user, isOP } = useAuth();
+  const { user, isOperator } = useAuth();
 
   useEffect(() => {
     fetchPinnedMessages();
@@ -65,7 +65,7 @@ const PinnedChat: React.FC = () => {
   const addPinnedMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !user || !isOP || sending) return;
+    if (!newMessage.trim() || !user || !isOperator || sending) return;
 
     setSending(true);
     const content = newMessage.trim();
@@ -202,7 +202,7 @@ const PinnedChat: React.FC = () => {
               </div>
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No pinned messages yet</h3>
               <p className="text-slate-600 dark:text-slate-400 mb-4">Permanent announcements will appear here</p>
-              {isOP && (
+              {isOperator && (
                 <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
                   📌 Add your first permanent announcement below
                 </p>
@@ -285,7 +285,7 @@ const PinnedChat: React.FC = () => {
                   </div>
                   
                   {/* Action Buttons */}
-                  {isOP && editingId !== message.id && (
+                  {isOperator && editingId !== message.id && (
                     <div className="flex gap-2">
                       <button
                         onClick={() => startEditing(message)}
@@ -311,7 +311,7 @@ const PinnedChat: React.FC = () => {
       </div>
 
       {/* Enhanced Add New Pinned Message (OP Only) */}
-      {isOP ? (
+      {isOperator ? (
         <div className="border-t border-amber-200 dark:border-amber-800 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 p-6">
           <form onSubmit={addPinnedMessage} className="space-y-4">
             <div className="flex items-center gap-3 mb-4">

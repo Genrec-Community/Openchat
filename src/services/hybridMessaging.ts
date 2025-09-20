@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { RealtimeMessage, RealtimeChannel, ChatContext } from '../types';
+import type { RealtimeMessage, ChatContext } from '../types';
 
 /**
  * Hybrid Messaging Service
@@ -415,7 +415,7 @@ export class HybridMessagingService {
     console.log('🧹 Cleaning up all hybrid subscriptions');
     
     // Unsubscribe from all channels
-    this.channels.forEach((channel, channelName) => {
+    this.channels.forEach((_, channelName) => {
       this.unsubscribe(channelName);
     });
   }
