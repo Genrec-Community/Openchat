@@ -20,7 +20,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   auth: {
     autoRefreshToken: true,
-    persistSession: false,
+    persistSession: true, // Enable session persistence for OAuth
+    detectSessionInUrl: true, // Enable OAuth callback detection
+    flowType: 'pkce', // Use PKCE flow for better security
   },
 })
 

@@ -1,24 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { MessageCircle, Pin, Settings, LogOut, Crown, Menu, X, ChevronLeft } from 'lucide-react';
+import { MessageCircle, Pin, Settings, LogOut, Crown, Menu, X, ChevronLeft, Users, Bell } from 'lucide-react';
 import DirectChat from './DirectChat';
 import PinnedChat from './PinnedChat';
 import SettingsPage from './SettingsPage';
+import GroupManager from './GroupManager';
+import RealtimeChat from './RealtimeChat';
+import Notifications from './Notifications';
+import type { GroupWithDetails } from '../types';
 
-type ChatView = 'direct' | 'pinned' | 'settings';
+type ChatView = 'direct' | 'pinned' | 'settings' | 'groups' | 'group-chat';
 
 const ChatLayout: React.FC = () => {
   const [activeView, setActiveView] = useState<ChatView>('direct');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState(0);
-  const { user, isOP, logout } = useAuth();
+  const [selectedGroup, setSelectedGroup] = useState<GroupWithDetails | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadDirectMessages, setUnreadDirectMessages] = useState(0);
+  const [unreadGroupMessages, setUnreadGroupMessages] = useState<{ [groupId: string]: number }>({});
+  const { user, isOperator, canAccessGroups, logout } = useAuth();
 
   useEffect(() => {
     const fetchUsers = async () => {
       const { data, error } = await supabase
-        .from('users')
+        .from('users_v2')
         .select('last_active');
 
       if (error) {
@@ -33,7 +42,7 @@ const ChatLayout: React.FC = () => {
 
     const channel = supabase
       .channel('users_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users_v2' }, () => {
         fetchUsers();
       })
       .subscribe();
@@ -43,9 +52,38 @@ const ChatLayout: React.FC = () => {
     };
   }, []);
 
+  // Mock notification count - in real app this would come from notifications
+  useEffect(() => {
+    // Simulate some unread notifications
+    const mockCount = Math.floor(Math.random() * 5);
+    setUnreadNotifications(mockCount);
+    
+    // Simulate unread direct messages
+    if (activeView !== 'direct') {
+      setUnreadDirectMessages(Math.floor(Math.random() * 3));
+    } else {
+      setUnreadDirectMessages(0);
+    }
+  }, [activeView]);
+
   const handleViewChange = (view: ChatView) => {
     setActiveView(view);
     setSidebarOpen(false);
+    // Reset selected group when changing views
+    if (view !== 'group-chat') {
+      setSelectedGroup(null);
+    }
+  };
+
+  const handleGroupSelect = (group: GroupWithDetails) => {
+    setSelectedGroup(group);
+    setActiveView('group-chat');
+    setSidebarOpen(false);
+  };
+
+  const handleBackToGroups = () => {
+    setActiveView('groups');
+    setSelectedGroup(null);
   };
 
   const handleLogout = () => {
@@ -60,6 +98,16 @@ const ChatLayout: React.FC = () => {
         return <PinnedChat />;
       case 'settings':
         return <SettingsPage />;
+      case 'groups':
+        return <GroupManager onGroupSelect={handleGroupSelect} />;
+      case 'group-chat':
+        return selectedGroup ? (
+          <RealtimeChat 
+            context="group" 
+            group={selectedGroup}
+            onBack={handleBackToGroups}
+          />
+        ) : <GroupManager onGroupSelect={handleGroupSelect} />;
       default:
         return <DirectChat />;
     }
@@ -130,6 +178,16 @@ const ChatLayout: React.FC = () => {
               collapsed={sidebarCollapsed}
               onClick={() => handleViewChange('direct')}
             />
+            {canAccessGroups() && (
+              <NavItem
+                icon={<Users size={20} />}
+                text="Groups"
+                active={activeView === 'groups' || activeView === 'group-chat'}
+                collapsed={sidebarCollapsed}
+                onClick={() => handleViewChange('groups')}
+                badge={selectedGroup ? selectedGroup.name : undefined}
+              />
+            )}
             <NavItem
               icon={<Pin size={20} />}
               text="Pinned Messages"
@@ -170,7 +228,7 @@ const ChatLayout: React.FC = () => {
                       <LogOut size={16} />
                     </button>
                   </div>
-                  {isOP && (
+                  {isOperator && (
                     <div className="flex items-center space-x-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
                       <Crown size={12} />
                       <span>Operator</span>
@@ -196,11 +254,28 @@ const ChatLayout: React.FC = () => {
             </button>
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
               {activeView === 'direct' && 'Direct Chat'}
+              {activeView === 'groups' && 'Groups'}
+              {activeView === 'group-chat' && (selectedGroup ? selectedGroup.name : 'Group Chat')}
               {activeView === 'pinned' && 'Pinned Messages'}
               {activeView === 'settings' && 'Settings'}
             </h2>
           </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
+            {/* Notifications Bell */}
+            <button
+              onClick={() => setNotificationsOpen(true)}
+              className="relative p-2 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+            
+            {/* Online Users */}
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{onlineUsers} Online</span>
@@ -213,6 +288,12 @@ const ChatLayout: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+      
+      {/* Notifications Panel */}
+      <Notifications 
+        isOpen={notificationsOpen} 
+        onClose={() => setNotificationsOpen(false)} 
+      />
     </div>
   );
 };
@@ -224,9 +305,10 @@ interface NavItemProps {
   active: boolean;
   collapsed: boolean;
   onClick: () => void;
+  badge?: string;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, text, active, collapsed, onClick }) => {
+const NavItem: React.FC<NavItemProps> = ({ icon, text, active, collapsed, onClick, badge }) => {
   return (
     <button
       onClick={onClick}
@@ -238,7 +320,16 @@ const NavItem: React.FC<NavItemProps> = ({ icon, text, active, collapsed, onClic
       title={collapsed ? text : undefined}
     >
       <div className="flex-shrink-0">{icon}</div>
-      {!collapsed && <span className="flex-1 text-left">{text}</span>}
+      {!collapsed && (
+        <div className="flex-1 flex items-center justify-between">
+          <span className="text-left">{text}</span>
+          {badge && (
+            <span className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full truncate max-w-20">
+              {badge}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 };

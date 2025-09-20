@@ -1,18 +1,104 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import type { Message } from '../types';
-import { Send, Crown, Clock } from 'lucide-react';
+import type { RealtimeMessage } from '../types';
+import { Send, Crown, Clock, Timer, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { messageCleanupService } from '../services/messageCleanup';
 
+// Countdown Timer Component
+interface CountdownTimerProps {
+  expiresAt: string;
+  isOwn: boolean;
+  className?: string;
+}
+
+const CountdownTimer: React.FC<CountdownTimerProps> = ({ expiresAt, isOwn, className = '' }) => {
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
+  const [urgency, setUrgency] = useState<'normal' | 'warning' | 'critical'>('normal');
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const expires = new Date(expiresAt).getTime();
+      const diff = expires - now;
+
+      if (diff <= 0) {
+        setTimeRemaining('Expired');
+        setIsExpired(true);
+        setUrgency('critical');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      // Determine urgency level
+      if (diff <= 5 * 60 * 1000) { // Less than 5 minutes
+        setUrgency('critical');
+      } else if (diff <= 30 * 60 * 1000) { // Less than 30 minutes
+        setUrgency('warning');
+      } else {
+        setUrgency('normal');
+      }
+
+      if (hours > 0) {
+        setTimeRemaining(`${hours}h ${minutes}m`);
+      } else if (minutes > 0) {
+        setTimeRemaining(`${minutes}m ${seconds}s`);
+      } else {
+        setTimeRemaining(`${seconds}s`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  const getUrgencyStyles = () => {
+    if (isExpired) {
+      return isOwn 
+        ? 'bg-red-500/20 text-red-200 border border-red-400/30'
+        : 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-400 dark:border-red-700';
+    }
+
+    switch (urgency) {
+      case 'critical':
+        return isOwn 
+          ? 'bg-red-500/20 text-red-200 border border-red-400/30 animate-pulse'
+          : 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-400 dark:border-red-700 animate-pulse';
+      case 'warning':
+        return isOwn 
+          ? 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+          : 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700';
+      default:
+        return isOwn 
+          ? 'bg-green-500/20 text-green-200 border border-green-400/30'
+          : 'bg-green-100 text-green-800 border border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-700';
+    }
+  };
+
+  return (
+    <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-medium ${getUrgencyStyles()} ${className}`}>
+      <Timer className="w-3 h-3" />
+      <span>{timeRemaining}</span>
+    </span>
+  );
+};
+
 const DirectChat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<RealtimeMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [newMessageIndicator, setNewMessageIndicator] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user, isOP } = useAuth();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { user, isOperator } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,7 +132,7 @@ const DirectChat: React.FC = () => {
               key: `user-${Date.now()}`,
             },
             broadcast: {
-              self: false, // Don't broadcast to self
+              self: true, // Allow self-broadcast for immediate message display
             },
           },
         })
@@ -55,12 +141,13 @@ const DirectChat: React.FC = () => {
           { 
             event: 'INSERT', 
             schema: 'public', 
-            table: 'messages' 
+            table: 'messages_v2',
+            filter: 'message_type=eq.direct'
           },
           (payload) => {
             const receiveTime = Date.now();
             console.log('✅ New message received via real-time:', payload.new);
-            const newMessage = payload.new as Message;
+            const newMessage = payload.new as RealtimeMessage;
             
             // Calculate delivery latency for performance monitoring
             const messageTime = new Date(newMessage.created_at).getTime();
@@ -77,6 +164,8 @@ const DirectChat: React.FC = () => {
               
               if (!exists) {
                 console.log('✅ Adding new message to state:', newMessage.id);
+                setNewMessageIndicator(newMessage.id); // Mark as new
+                setTimeout(() => setNewMessageIndicator(null), 3000); // Clear indicator after 3s
                 return [...prev, newMessage];
               } else {
                 console.log('✅ Message already exists, replacing if needed:', newMessage.id);
@@ -103,11 +192,11 @@ const DirectChat: React.FC = () => {
           { 
             event: 'DELETE', 
             schema: 'public', 
-            table: 'messages' 
+            table: 'messages_v2'
           },
           (payload) => {
             console.log('✅ Message deleted via real-time:', payload.old);
-            const deletedMessage = payload.old as Message;
+            const deletedMessage = payload.old as RealtimeMessage;
             setMessages(prev => prev.filter(msg => msg.id !== deletedMessage.id));
           }
         )
@@ -158,8 +247,9 @@ const DirectChat: React.FC = () => {
       try {
         console.log('🔄 Performing periodic message sync...');
         const { data, error } = await supabase
-          .from('messages')
+          .from('messages_v2')
           .select('*')
+          .eq('message_type', 'direct')
           .order('created_at', { ascending: true });
         
         if (error) {
@@ -202,8 +292,9 @@ const DirectChat: React.FC = () => {
   const fetchMessages = async () => {
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('messages_v2')
         .select('*')
+        .eq('message_type', 'direct')
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -231,13 +322,16 @@ const DirectChat: React.FC = () => {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // Create optimistic message for immediate UI feedback
-    const optimisticMessage: Message = {
+    const optimisticMessage: RealtimeMessage = {
       id: tempId,
       user_id: user.id,
       username: user.username,
+      display_name: user.display_name,
       content,
       created_at: new Date().toISOString(),
       expires_at: expiresAt,
+      message_type: 'direct',
+      user_role: user.role,
     };
 
     // Add optimistic message immediately for the sender
@@ -245,35 +339,51 @@ const DirectChat: React.FC = () => {
     setNewMessage('');
 
     try {
-      console.log('Sending message to database:', content);
+      console.log('Sending message using new TTL infrastructure:', content);
       
-      const { data, error } = await supabase
-        .from('messages')
-        .insert([{ 
-          user_id: user.id, 
-          username: user.username, 
-          content,
-          expires_at: expiresAt
-        }])
-        .select();
+      // Use the new guest-compatible function
+      const { data: messageId, error } = await supabase.rpc('send_message_v2_guest', {
+        p_user_id: user.id,
+        p_content: content,
+        p_message_type: 'direct',
+        p_group_id: null,
+        p_custom_retention_hours: null
+      });
 
       if (error) throw error;
 
-      console.log('Message sent successfully, database ID:', data[0]?.id);
+      console.log('Message sent successfully with TTL, database ID:', messageId);
       
+      // Fetch the complete message from database (with all metadata including calculated TTL)
+      const { data: storedMessage, error: fetchError } = await supabase
+        .from('messages_v2')
+        .select('*')
+        .eq('id', messageId)
+        .single();
+
+      if (fetchError) {
+        console.error('Failed to fetch stored message:', fetchError);
+        throw fetchError;
+      }
+
       // Replace the optimistic message with the real one from database
-      // This ensures the sender's tab shows the correct message immediately
-      if (data && data[0]) {
+      // This ensures the sender's tab shows the correct message with proper TTL
+      if (storedMessage) {
         setMessages(prev => prev.map(m => {
           if (m.id === tempId) {
-            console.log('Replacing optimistic message with real message:', data[0].id);
-            return data[0];
+            console.log('Replacing optimistic message with real TTL message:', storedMessage.id);
+            return storedMessage;
           }
           return m;
         }));
       }
       
       // Note: Other tabs will receive this message via real-time subscription
+      
+      // Re-focus the input field after successful send
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -300,32 +410,70 @@ const DirectChat: React.FC = () => {
           const isOwn = message.user_id === user?.id;
           const timeRemaining = messageCleanupService.getTimeRemaining(message.expires_at);
           const isExpiringSoon = !timeRemaining.expired && timeRemaining.hours === 0 && timeRemaining.minutes < 30;
+          const displayName = message.display_name || message.username;
+          const isNewMessage = newMessageIndicator === message.id;
           
           return (
-            <div key={message.id} className={`flex items-end gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${isOwn ? 'bg-indigo-500' : 'bg-zinc-400'}`}>
-                {message.username.charAt(0).toUpperCase()}
+            <div key={message.id} className={`flex items-start gap-3 ${isOwn ? 'flex-row-reverse' : ''} ${isNewMessage ? 'animate-pulse bg-blue-50 dark:bg-blue-900/10 rounded-lg p-2 -m-2' : ''}`}>
+              {/* User Avatar */}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${isOwn ? 'bg-indigo-500' : 'bg-zinc-400'}`}>
+                {displayName.charAt(0).toUpperCase()}
               </div>
-              <div className={`max-w-lg p-3.5 rounded-2xl shadow-sm ${isOwn ? 'bg-indigo-500 text-white rounded-br-none' : 'bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-bl-none'} ${timeRemaining.expired ? 'opacity-50' : ''}`}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs font-bold">{message.username}</span>
-                  {isOP && message.username === user?.username && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-                </div>
-                <p className="text-sm break-words">{message.content}</p>
-                <div className={`text-xs mt-2 flex items-center gap-1.5 ${isOwn ? 'text-indigo-100' : 'text-zinc-400'}`}>
-                  <Clock size={12} />
-                  <span>{formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}</span>
-                  {message.expires_at && (
-                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                      timeRemaining.expired 
-                        ? 'bg-red-500 text-white'
-                        : isExpiringSoon 
-                        ? 'bg-yellow-500 text-black'
-                        : 'bg-green-500 text-white'
-                    }`}>
-                      {messageCleanupService.formatTimeRemaining(message.expires_at)}
+              
+              {/* Message Bubble */}
+              <div className={`max-w-lg ${isOwn ? 'items-end' : 'items-start'} flex flex-col space-y-1`}>
+                {/* User Name and Role */}
+                <div className={`flex items-center space-x-2 ${isOwn ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <div className="flex items-center space-x-1">
+                    <span className={`text-xs font-semibold ${isOwn ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                      {displayName}
                     </span>
-                  )}
+                    {message.display_name && (
+                      <span className={`text-xs text-zinc-500 dark:text-zinc-400`}>
+                        (@{message.username})
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Role Badge */}
+                  <div className="flex items-center space-x-1">
+                    {message.user_role === 'operator' && (
+                      <Crown className="w-3.5 h-3.5 text-amber-500" />
+                    )}
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      message.user_role === 'operator' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                      message.user_role === 'admin' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400' :
+                      message.user_role === 'normal' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
+                      'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
+                    }`}>
+                      {message.user_role}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* New Message Indicator */}
+                {isNewMessage && !isOwn && (
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full animate-ping" />
+                )}
+                
+                {/* Message Content */}
+                <div className={`p-3.5 rounded-2xl shadow-sm ${isOwn ? 'bg-indigo-500 text-white rounded-br-none' : 'bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-bl-none border border-zinc-200 dark:border-zinc-600'} ${timeRemaining.expired ? 'opacity-50' : ''}`}>
+                  <p className="text-sm break-words leading-relaxed">{message.content}</p>
+                  
+                  {/* Message Footer */}
+                  <div className={`flex items-center justify-between mt-2 text-xs ${isOwn ? 'text-indigo-100' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}</span>
+                    </div>
+                    
+                    {/* Real-time Countdown Timer */}
+                    <CountdownTimer 
+                      expiresAt={message.expires_at} 
+                      isOwn={isOwn}
+                      className="ml-2"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -337,12 +485,14 @@ const DirectChat: React.FC = () => {
         <form onSubmit={sendMessage} className="flex items-center space-x-3">
           <div className="flex-1 relative">
             <input
+              ref={inputRef}
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type a message..."
               className="w-full px-5 py-3 bg-zinc-100 dark:bg-zinc-700 border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
               disabled={sending}
+              autoFocus
             />
           </div>
           <button

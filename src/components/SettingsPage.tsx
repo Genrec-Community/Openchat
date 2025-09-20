@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Settings, User, Palette, Save, Crown, Shield, Clock, Sun, Moon } from 'lucide-react';
+import OperatorSettings from './OperatorSettings';
 
 const SettingsPage: React.FC = () => {
-  const { user, isOP, updateUser } = useAuth();
+  const { user, isOperator, updateUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'profile' | 'operator'>('profile');
   const [username, setUsername] = useState(user?.username || '');
   const [theme, setTheme] = useState(user?.theme || 'light');
   const [saving, setSaving] = useState(false);
@@ -57,7 +59,40 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Operator Tab Navigation */}
+        {isOperator && (
+          <div className="flex space-x-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg mb-6">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'profile'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              Profile Settings
+            </button>
+            <button
+              onClick={() => setActiveTab('operator')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'operator'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              Operator Settings
+            </button>
+          </div>
+        )}
+
+        {/* Content based on active tab */}
+        {activeTab === 'operator' && isOperator ? (
+          <OperatorSettings />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              {/* Profile sidebar - same as before */}
+            </div>
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-6 sticky top-6">
               <div className="text-center">
@@ -69,16 +104,16 @@ const SettingsPage: React.FC = () => {
                 
                 <div className="flex items-center justify-center space-x-2 mb-2">
                   <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{user?.username}</h3>
-                  {isOP && (
-                    <div className="flex items-center space-x-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/40 rounded-full">
-                      <Crown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300">OP</span>
+                  {isOperator && (
+                    <div className="flex items-center space-x-1 px-2 py-1 bg-red-100 dark:bg-red-900/40 rounded-full">
+                      <Crown className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      <span className="text-xs font-medium text-red-700 dark:text-red-300">Operator</span>
                     </div>
                   )}
                 </div>
                 
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-                  {isOP ? 'Chat Moderator' : 'Anonymous Member'}
+                  {isOperator ? 'System Operator' : 'Anonymous Member'}
                 </p>
                 
                 <div className="space-y-3 text-sm">
@@ -104,8 +139,8 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-6">
-            <form onSubmit={handleSave} className="space-y-6">
+            <div className="lg:col-span-2 space-y-6">
+              <form onSubmit={handleSave} className="space-y-6">
               <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-6">
                 <div className="flex items-center space-x-3 mb-6">
                   <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center">
@@ -209,6 +244,7 @@ const SettingsPage: React.FC = () => {
             </form>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

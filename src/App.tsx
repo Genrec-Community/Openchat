@@ -4,12 +4,22 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import LoginPage from './components/LoginPage';
 import ChatLayout from './components/ChatLayout';
+import GoogleCallbackPage from './components/GoogleCallbackPage';
 import { messageCleanupService } from './services/messageCleanup';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  const { isAuthenticated, user } = useAuth();
+  
+  console.log('🔒 ProtectedRoute - isAuthenticated:', isAuthenticated, 'user:', user?.username);
+  
+  if (!isAuthenticated) {
+    console.log('🚫 Not authenticated, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+  
+  console.log('✅ Authenticated, rendering protected content');
+  return <>{children}</>;
 };
 
 // Theme Effect Component
@@ -29,7 +39,9 @@ const ThemeEffect: React.FC = () => {
 
 // Main App Component
 const AppContent: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  
+  console.log('🔍 App - isAuthenticated:', isAuthenticated, 'user:', user?.username);
 
   return (
     <>
@@ -37,7 +49,17 @@ const AppContent: React.FC = () => {
       <Routes>
         <Route 
           path="/login" 
-          element={isAuthenticated ? <Navigate to="/chat" replace /> : <LoginPage />} 
+          element={
+            isAuthenticated ? (
+              <Navigate to="/chat" replace />
+            ) : (
+              <LoginPage />
+            )
+          } 
+        />
+        <Route
+          path="/auth/callback"
+          element={<GoogleCallbackPage />}
         />
         <Route
           path="/chat"
@@ -47,8 +69,8 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} />
       </Routes>
     </>
   );
